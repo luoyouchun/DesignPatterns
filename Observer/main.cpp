@@ -1,36 +1,101 @@
-#include "concrete_subject.h"
-#include "concrete_observer.h"
+#include <iostream>
 
-#ifndef SAFE_DELETE
-#define SAFE_DELETE(p) { if(p){delete(p); (p)=NULL;} }
-#endif
+using namespace std;
+
+template<typename T>
+struct visitor
+{
+    virtual void visit(T*) = 0;
+};
+
+struct visitor_token
+{
+    virtual ~visitor_token() = default;
+};
+
+struct animal
+{
+    virtual int move() = 0;
+    virtual void accept(visitor_token*) = 0;
+    virtual ~animal() = default;
+};
+
+// crtp
+template<typename T>
+struct visitable : public animal
+ {
+     void accept(visitor_token * v) override
+     {
+         dynamic_cast<visitor<T>*>(v)->visit(static_cast<T*>(this));
+     }
+ };
+
+struct dog : public visitable<dog>{
+    int move() override {
+        return 4;
+    }
+
+    void swim(){
+        std::cout<<"swim"<<std::endl;
+    }
+};
+
+struct bird : public visitable<bird>{
+    int move() override {
+        return 2;
+    }
+
+    void fly(){
+        std::cout<<"fly"<<std::endl;
+    }
+};
+
+struct fish : public visitable<fish>{
+    int move() override {
+        return 1;
+    }
+
+    void dive(){
+        std::cout<<"dive"<<std::endl;
+    }
+};
+
+template<class... T>
+struct MultipleVisitor : public visitor_token, public visitor<T>...
+{
+    //using visitor<T>::visit...;
+};
+
+using MyVisitor = MultipleVisitor<dog,bird>;
+using MyVisitor1 = MultipleVisitor<fish>;
+
+struct visitor_impl : public MyVisitor{
+    void visit(dog* d) override{
+        d->swim();
+    }
+
+    void visit(bird* b) override{
+        b->fly();
+    }
+};
+
+struct visitor_impl1 : public MyVisitor1{
+    void visit(fish* f) override{
+        f->dive();
+    }
+};
 
 int main()
 {
-    // 创建主题、观察者
-    ConcreteSubject *pSubject = new ConcreteSubject();
-    IObserver *pObserver1 = new ConcreteObserver("Jack Ma");
-    IObserver *pObserver2 = new ConcreteObserver("Pony");
+    animal* a = new dog;
+    visitor_token* v = new visitor_impl;
 
-    // 注册观察者
-    pSubject->Attach(pObserver1);
-    pSubject->Attach(pObserver2);
+    a->accept(v);
 
-    // 更改价格，并通知观察者
-    pSubject->SetPrice(12.5);
-    pSubject->Notify();
+    animal* b = new bird;
+    b->accept(v);
 
-    // 注销观察者
-    pSubject->Detach(pObserver2);
-    // 再次更改状态，并通知观察者
-    pSubject->SetPrice(15.0);
-    pSubject->Notify();
-
-    SAFE_DELETE(pObserver1);
-    SAFE_DELETE(pObserver2);
-    SAFE_DELETE(pSubject);
-
-    getchar();
-
-    return 0;
+    visitor_token* v1 = new visitor_impl1;
+    animal* c = new fish;
+    c->accept(v1);
 }
